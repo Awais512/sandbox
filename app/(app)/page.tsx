@@ -13,7 +13,7 @@ export default async function Page() {
   await auth.protect({ unauthenticatedUrl: "/sign-in" })
 
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-6">
+    <div className="flex min-h-svh w-full flex-col items-center justify-center gap-6">
       <Empty className="flex-none">
         <EmptyHeader>
           <EmptyMedia>
