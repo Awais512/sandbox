@@ -3,7 +3,14 @@
 import * as React from "react"
 import Image from "next/image"
 import { useChat } from "@ai-sdk/react"
-import { DefaultChatTransport, type UIMessage } from "ai"
+import type { UIMessage } from "ai"
+import { useTriggerChatTransport } from "@trigger.dev/sdk/chat/react"
+import type { gameChat } from "@/trigger/chat"
+import {
+  getGameChatState,
+  mintGameChatToken,
+  startGameChatSession,
+} from "@/lib/chat/actions"
 import { Loader2Icon } from "lucide-react"
 import { cn } from "cn"
 
@@ -20,21 +27,56 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
 
+export interface ChatSessionState {
+  publicAccessToken: string
+  lastEventId?: string
+}
+
 export interface ChatThreadProps {
   gameId?: string
   initialMessages?: UIMessage[]
+  initialSessions?: Record<string, ChatSessionState>
   initialPrompt?: string
   initialModelId?: string
   className?: string
 }
 
-export function ChatThread({
+interface HealState {
+  messages?: UIMessage[]
+  sessions?: Record<string, ChatSessionState>
+}
+
+interface ChatThreadInnerProps extends ChatThreadProps {
+  allowHeal?: boolean
+  onHeal?: (heal: HealState) => void
+}
+
+export function ChatThread(props: ChatThreadProps) {
+  const [heal, setHeal] = React.useState<HealState | null>(null)
+  const handleHeal = React.useCallback((h: HealState) => setHeal(h), [])
+
+  return (
+    <ChatThreadInner
+      key={`${props.gameId}:${heal ? "healed" : "boot"}`}
+      {...props}
+      initialMessages={heal?.messages ?? props.initialMessages}
+      initialSessions={heal?.sessions ?? props.initialSessions}
+      allowHeal={heal === null}
+      onHeal={handleHeal}
+    />
+  )
+}
+
+export function ChatThreadInner({
   gameId,
   initialMessages,
+  initialSessions,
   initialPrompt,
   initialModelId,
   className,
-}: ChatThreadProps) {
+  allowHeal,
+  onHeal,
+}: ChatThreadInnerProps) {
   const [input, setInput] = React.useState("")
   const [selectedModel, setSelectedModel] = React.useState<Model>(() => {
     if (initialModelId) {
@@ -57,26 +99,96 @@ export function ChatThread({
     return models[0]
   })
 
-  const transport = React.useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: "/api/chat",
-        body: {
-          gameId,
-        },
-      }),
-    [gameId]
-  )
+  const transport = useTriggerChatTransport<typeof gameChat>({
+    task: "game-chat",
+    accessToken: ({ chatId }) => mintGameChatToken(chatId),
+    startSession: ({ chatId, clientData }) =>
+      startGameChatSession({ chatId, clientData }),
+    clientData: { model: selectedModel.id },
+    sessions: initialSessions,
+  })
 
-  const { messages, sendMessage, status, stop, error, regenerate } = useChat({
+  const {
+    messages,
+    sendMessage,
+    status,
+    stop: aiStop,
+    error,
+    regenerate,
+  } = useChat({
     id: gameId,
     messages: initialMessages,
     transport,
+    resume: (initialMessages?.length ?? 0) > 0,
   })
+
+  const stop = React.useCallback(() => {
+    if (gameId) {
+      void transport.stopGeneration(gameId)
+    }
+    void aiStop()
+  }, [transport, gameId, aiStop])
 
   const isPending = status === "submitted" || status === "streaming"
 
   const hasAutoSubmittedRef = React.useRef(false)
+  const didSendRef = React.useRef(false)
+  const healAttemptedRef = React.useRef(false)
+  const bootMessagesLen = React.useRef(initialMessages?.length ?? 0)
+
+  const statusRef = React.useRef(status)
+  const messagesRef = React.useRef(messages)
+  const inputRef = React.useRef(input)
+  React.useEffect(() => {
+    statusRef.current = status
+    messagesRef.current = messages
+    inputRef.current = input
+  })
+
+  // Heal pass: server-rendered props can be stale on client-side navigation
+  // (router/prefetch cache), and a mount-time resume gets exactly one shot.
+  // Shortly after mount, while idle, re-read authoritative state. If the
+  // server truth advanced (stale props / turn finished while away) reboot on
+  // it; if we're idle with an unanswered user message, the resume likely
+  // never connected, so reboot once with the authoritative cursor to retry.
+  // Never fires while streaming, errored, drafting, or after this instance
+  // sent a turn itself.
+  React.useEffect(() => {
+    if (!gameId || !allowHeal || healAttemptedRef.current) return
+    const timer = setTimeout(() => {
+      const s = statusRef.current
+      if (s === "submitted" || s === "streaming" || s === "error") return
+      if (didSendRef.current) return
+      if (inputRef.current.trim()) return
+      healAttemptedRef.current = true
+      void getGameChatState(gameId)
+        .then((fresh) => {
+          const bootLen = bootMessagesLen.current
+          const freshLen = fresh.messages?.length ?? 0
+          const local = messagesRef.current
+          const fs = fresh.session
+          if (freshLen > Math.max(bootLen, local.length)) {
+            onHeal?.({
+              messages: fresh.messages,
+              sessions: fs ? { [gameId]: fs } : undefined,
+            })
+          } else if (
+            local.length > 0 &&
+            local[local.length - 1]?.role === "user" &&
+            fs
+          ) {
+            onHeal?.({
+              messages: fresh.messages,
+              sessions: { [gameId]: fs },
+            })
+          }
+        })
+        .catch(() => {
+          // Fresh fetch failed (auth/network): keep server-rendered state.
+        })
+    }, 1500)
+    return () => clearTimeout(timer)
+  }, [gameId, allowHeal, onHeal])
 
   React.useEffect(() => {
     if (hasAutoSubmittedRef.current) return
@@ -144,11 +256,11 @@ export function ChatThread({
       ? (models.find((m) => m.id === initialModelId) ?? selectedModel)
       : selectedModel
 
+    didSendRef.current = true
     sendMessage(
       { text: promptToSend },
       {
-        body: {
-          gameId,
+        metadata: {
           model: modelToUse.id,
         },
       }
@@ -166,11 +278,11 @@ export function ChatThread({
   const handleSendMessage = (value: string) => {
     const text = value.trim()
     if (!text || isPending) return
+    didSendRef.current = true
     sendMessage(
       { text },
       {
-        body: {
-          gameId,
+        metadata: {
           model: selectedModel.id,
         },
       }

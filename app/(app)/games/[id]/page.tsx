@@ -3,6 +3,11 @@ import { auth } from "@clerk/nextjs/server"
 import { ChatThread } from "@/components/chat-thread"
 import { getGame } from "@/lib/games/queries"
 
+// Chat threads must always render fresh DB state: a statically prerendered
+// (or prefetched) copy would show stale messages and a stale resume cursor.
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 interface GamePageProps {
   params: Promise<{
     id: string
@@ -39,11 +44,22 @@ export default async function GamePage({
     notFound()
   }
 
+  const initialSessions = game.publicAccessToken
+    ? {
+        [game.id]: {
+          publicAccessToken: game.publicAccessToken,
+          lastEventId: game.lastEventId ?? undefined,
+        },
+      }
+    : undefined
+
   return (
     <div className="flex h-svh w-full flex-col overflow-hidden">
       <ChatThread
+        key={game.id}
         gameId={game.id}
         initialMessages={game.messages ?? []}
+        initialSessions={initialSessions}
         initialPrompt={prompt}
         initialModelId={model}
       />

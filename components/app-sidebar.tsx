@@ -86,7 +86,7 @@ export function AppSidebar({ games = [], ...props }: AppSidebarProps) {
                     <SidebarMenuButton
                       tooltip={game.title}
                       isActive={pathname === `/games/${game.id}`}
-                      render={<Link href={`/games/${game.id}`} />}
+                      render={<Link href={`/games/${game.id}`} prefetch={false} />}
                     >
                       <MessageSquareIcon />
                       <span className="truncate">{game.title}</span>
@@ -136,6 +136,7 @@ export function AppSidebar({ games = [], ...props }: AppSidebarProps) {
                               render={
                                 <Link
                                   href={`/games/${game.id}`}
+                                  prefetch={false}
                                   onClick={() => setOpen(false)}
                                 />
                               }
