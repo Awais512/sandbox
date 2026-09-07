@@ -37,8 +37,11 @@ export function ChatThread({
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
+        body: {
+          gameId,
+        },
       }),
-    []
+    [gameId]
   )
 
   const { messages, sendMessage, status, stop, error, regenerate } = useChat({

@@ -21,7 +21,7 @@ export default async function GamePage({ params }: GamePageProps) {
 
   return (
     <div className="flex h-svh w-full flex-col overflow-hidden">
-      <ChatThread gameId={game.id} />
+      <ChatThread gameId={game.id} initialMessages={game.messages ?? []} />
     </div>
   )
 }
