@@ -7,6 +7,7 @@ import {
   ChevronDownIcon,
   GripVerticalIcon,
   Loader2Icon,
+  SquareIcon,
 } from "lucide-react"
 import { cn } from "cn"
 
@@ -29,6 +30,7 @@ export const models = [
   { id: "claude-3-7-sonnet", name: "Claude 3.7 Sonnet" },
   { id: "gpt-4o", name: "GPT-4o" },
   { id: "gemini-2-5-flash", name: "Gemini 2.5 Flash" },
+  { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" },
 ]
 
 export type Model = (typeof models)[number]
@@ -37,6 +39,7 @@ export interface ChatComposerProps {
   value?: string
   onChange?: (value: string) => void
   onSubmit?: (value: string) => void | Promise<void>
+  onStop?: () => void
   disabled?: boolean
   isPending?: boolean
   placeholder?: string
@@ -49,6 +52,7 @@ export function ChatComposer({
   value: controlledValue,
   onChange: controlledOnChange,
   onSubmit,
+  onStop,
   disabled = false,
   isPending: controlledIsPending,
   placeholder = "Describe the game you want to build...",
@@ -157,11 +161,21 @@ export function ChatComposer({
           variant="default"
           size="icon-sm"
           className="rounded-full"
-          disabled={isPending || disabled || !value.trim()}
-          onClick={() => handleSubmit()}
+          disabled={isPending ? !onStop : disabled || !value.trim()}
+          onClick={() => {
+            if (isPending && onStop) {
+              onStop()
+            } else {
+              handleSubmit()
+            }
+          }}
         >
           {isPending ? (
-            <Loader2Icon className="animate-spin" />
+            onStop ? (
+              <SquareIcon className="size-3.5 fill-current" />
+            ) : (
+              <Loader2Icon className="animate-spin" />
+            )
           ) : (
             <ArrowUpIcon />
           )}

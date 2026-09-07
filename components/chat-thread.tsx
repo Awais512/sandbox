@@ -2,9 +2,12 @@
 
 import * as React from "react"
 import Image from "next/image"
+import { useChat } from "@ai-sdk/react"
+import { DefaultChatTransport, type UIMessage } from "ai"
+import { Loader2Icon } from "lucide-react"
 import { cn } from "cn"
 
-import { ChatComposer } from "@/components/chat-composer"
+import { ChatComposer, models, type Model } from "@/components/chat-composer"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Message, MessageAvatar, MessageContent } from "@/components/ui/message"
 import {
@@ -16,49 +19,48 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
 
-interface ChatMessage {
-  id: string
-  role: "user" | "assistant"
-  content: string
-}
-
-const MOCK_MESSAGES: ChatMessage[] = [
-  {
-    id: "msg-1",
-    role: "user",
-    content:
-      "Create a retro 2D platformer called 'Neon Leap'. The player is a robot navigating cyberpunk rooftops with high-speed jumps and neon laser traps.",
-  },
-  {
-    id: "msg-2",
-    role: "assistant",
-    content:
-      "I've built the foundation for **Neon Leap**! Here is what's ready to test in your game canvas:\n\n• **Player Controller**: Snappy movement physics, variable jump height, and air-dash with glowing trail particles.\n• **Hazards & Traps**: Pulsing vertical laser barriers and crumbling rooftop tiles that drop after 0.5 seconds.\n• **Energy Nodes**: 8 glowing energy cells scattered across the skyline to collect for speed boosts.\n• **Atmosphere**: Synthwave city backdrop with dynamic neon lighting and CRT scanlines.\n\nTake a look at the game preview! What gameplay mechanics or hazards would you like to refine next?",
-  },
-  {
-    id: "msg-3",
-    role: "user",
-    content:
-      "Can you make the jump gravity feel slightly heavier for crisper landing, and add a double-jump with a spark particle effect?",
-  },
-  {
-    id: "msg-4",
-    role: "assistant",
-    content:
-      "Updated! Here are the changes I've applied:\n\n• **Jump Tuning**: Increased downward gravity scale by 20% for tighter, more responsive aerial control.\n• **Double-Jump**: Added a mid-air jump mechanic accompanied by a cyan spark burst animation.\n• **Audio Feedback**: Hooked up audio cues for both initial jump and double-jump execution.\n\nTry out the acrobatics now and let me know how the movement feels!",
-  },
-]
-
 export interface ChatThreadProps {
   gameId?: string
+  initialMessages?: UIMessage[]
   className?: string
 }
 
-export function ChatThread({ className }: ChatThreadProps) {
+export function ChatThread({
+  gameId,
+  initialMessages,
+  className,
+}: ChatThreadProps) {
   const [input, setInput] = React.useState("")
+  const [selectedModel, setSelectedModel] = React.useState<Model>(models[0])
 
-  const sendMessage = (value: string) => {
-    console.log("sendMessage:", value)
+  const transport = React.useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+      }),
+    []
+  )
+
+  const { messages, sendMessage, status, stop, error, regenerate } = useChat({
+    id: gameId,
+    messages: initialMessages,
+    transport,
+  })
+
+  const isPending = status === "submitted" || status === "streaming"
+
+  const handleSendMessage = (value: string) => {
+    const text = value.trim()
+    if (!text || isPending) return
+    sendMessage(
+      { text },
+      {
+        body: {
+          gameId,
+          model: selectedModel.id,
+        },
+      }
+    )
     setInput("")
   }
 
@@ -74,44 +76,158 @@ export function ChatThread({ className }: ChatThreadProps) {
           <MessageScroller className="h-full">
             <MessageScrollerViewport className="p-4 md:px-6">
               <MessageScrollerContent className="mx-auto flex w-full max-w-3xl flex-col gap-6 py-4">
-                {MOCK_MESSAGES.map((message, index) => (
+                {messages.length === 0 ? (
+                  <div className="flex h-full min-h-[320px] flex-col items-center justify-center p-8 text-center text-muted-foreground">
+                    <Image
+                      src="/logo.svg"
+                      alt="Assistant"
+                      width={40}
+                      height={40}
+                      className="mb-3 size-10 object-contain opacity-80"
+                    />
+                    <p className="text-base font-medium text-foreground">
+                      What should we build today?
+                    </p>
+                    <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                      Describe the mechanics, aesthetics, or gameplay changes
+                      you&apos;d like to explore.
+                    </p>
+                  </div>
+                ) : (
+                  messages.map((message, index) => {
+                    const isLast = index === messages.length - 1
+                    const isAssistant = message.role === "assistant"
+
+                    return (
+                      <MessageScrollerItem
+                        key={message.id}
+                        messageId={message.id}
+                        scrollAnchor={
+                          isLast && status !== "submitted" && !error
+                        }
+                      >
+                        {isAssistant ? (
+                          <Message align="start">
+                            <MessageAvatar className="size-8 self-start rounded-lg bg-transparent">
+                              <Image
+                                src="/logo.svg"
+                                alt="Assistant"
+                                width={32}
+                                height={32}
+                                className="size-8 object-contain"
+                              />
+                            </MessageAvatar>
+                            <MessageContent>
+                              <Bubble variant="ghost">
+                                <BubbleContent className="text-sm leading-relaxed whitespace-pre-line">
+                                  {message.parts && message.parts.length > 0 ? (
+                                    message.parts.map((part, partIndex) => {
+                                      if (part.type === "text") {
+                                        return (
+                                          <span key={partIndex}>
+                                            {part.text}
+                                          </span>
+                                        )
+                                      }
+                                      if (part.type === "reasoning") {
+                                        return (
+                                          <div
+                                            key={partIndex}
+                                            className="my-1 rounded border-l-2 border-primary/40 bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground italic"
+                                          >
+                                            {part.text}
+                                          </div>
+                                        )
+                                      }
+                                      return null
+                                    })
+                                  ) : (
+                                    <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+                                  )}
+                                </BubbleContent>
+                              </Bubble>
+                            </MessageContent>
+                          </Message>
+                        ) : (
+                          <Message align="end">
+                            <MessageContent>
+                              <Bubble variant="secondary" align="end">
+                                <BubbleContent className="text-sm leading-relaxed whitespace-pre-line">
+                                  {message.parts && message.parts.length > 0
+                                    ? message.parts.map((part, partIndex) => {
+                                        if (part.type === "text") {
+                                          return (
+                                            <span key={partIndex}>
+                                              {part.text}
+                                            </span>
+                                          )
+                                        }
+                                        return null
+                                      })
+                                    : null}
+                                </BubbleContent>
+                              </Bubble>
+                            </MessageContent>
+                          </Message>
+                        )}
+                      </MessageScrollerItem>
+                    )
+                  })
+                )}
+
+                {status === "submitted" && (
                   <MessageScrollerItem
-                    key={message.id}
-                    messageId={message.id}
-                    scrollAnchor={index === MOCK_MESSAGES.length - 1}
+                    key="pending-submission"
+                    messageId="pending-submission"
+                    scrollAnchor={!error}
                   >
-                    {message.role === "assistant" ? (
-                      <Message align="start">
-                        <MessageAvatar className="size-8 self-start rounded-lg bg-transparent">
-                          <Image
-                            src="/logo.svg"
-                            alt="Assistant"
-                            width={32}
-                            height={32}
-                            className="size-8 object-contain"
-                          />
-                        </MessageAvatar>
-                        <MessageContent>
-                          <Bubble variant="ghost">
-                            <BubbleContent className="text-sm leading-relaxed whitespace-pre-line">
-                              {message.content}
-                            </BubbleContent>
-                          </Bubble>
-                        </MessageContent>
-                      </Message>
-                    ) : (
-                      <Message align="end">
-                        <MessageContent>
-                          <Bubble variant="secondary" align="end">
-                            <BubbleContent className="text-sm leading-relaxed whitespace-pre-line">
-                              {message.content}
-                            </BubbleContent>
-                          </Bubble>
-                        </MessageContent>
-                      </Message>
-                    )}
+                    <Message align="start">
+                      <MessageAvatar className="size-8 self-start rounded-lg bg-transparent">
+                        <Image
+                          src="/logo.svg"
+                          alt="Assistant"
+                          width={32}
+                          height={32}
+                          className="size-8 object-contain"
+                        />
+                      </MessageAvatar>
+                      <MessageContent>
+                        <Bubble variant="ghost">
+                          <BubbleContent className="text-sm leading-relaxed text-muted-foreground">
+                            <Loader2Icon className="size-4 animate-spin" />
+                          </BubbleContent>
+                        </Bubble>
+                      </MessageContent>
+                    </Message>
                   </MessageScrollerItem>
-                ))}
+                )}
+
+                {error && (
+                  <MessageScrollerItem
+                    key="chat-error"
+                    messageId="chat-error"
+                    scrollAnchor
+                  >
+                    <Message align="start">
+                      <MessageContent>
+                        <Bubble variant="destructive">
+                          <BubbleContent className="flex items-center gap-3 text-sm leading-relaxed">
+                            <span>
+                              {error.message || "Failed to generate response."}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => regenerate()}
+                              className="cursor-pointer text-xs font-semibold underline underline-offset-2 hover:opacity-80"
+                            >
+                              Retry
+                            </button>
+                          </BubbleContent>
+                        </Bubble>
+                      </MessageContent>
+                    </Message>
+                  </MessageScrollerItem>
+                )}
               </MessageScrollerContent>
             </MessageScrollerViewport>
             <MessageScrollerButton direction="end" />
@@ -124,7 +240,11 @@ export function ChatThread({ className }: ChatThreadProps) {
           <ChatComposer
             value={input}
             onChange={setInput}
-            onSubmit={sendMessage}
+            onSubmit={handleSendMessage}
+            onStop={stop}
+            isPending={isPending}
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
           />
         </div>
       </div>
