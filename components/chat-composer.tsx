@@ -22,8 +22,16 @@ import {
 } from "@/components/ui/input-group"
 import { createGame } from "@/lib/games/actions"
 
+const models = [
+  { id: "kimi-k3", name: "Kimi K3" },
+  { id: "claude-3-7-sonnet", name: "Claude 3.7 Sonnet" },
+  { id: "gpt-4o", name: "GPT-4o" },
+  { id: "gemini-2-5-flash", name: "Gemini 2.5 Flash" },
+]
+
 export function ChatComposer() {
   const [prompt, setPrompt] = React.useState("")
+  const [selectedModel, setSelectedModel] = React.useState(models[0])
   const [isPending, startTransition] = React.useTransition()
 
   const handleSubmit = (value?: string) => {
@@ -64,16 +72,20 @@ export function ChatComposer() {
             render={
               <InputGroupButton variant="ghost">
                 <GripVerticalIcon />
-                <span>Kimi K3</span>
+                <span>{selectedModel.name}</span>
                 <ChevronDownIcon />
               </InputGroupButton>
             }
           />
           <DropdownMenuContent align="start">
-            <DropdownMenuItem>Kimi K3</DropdownMenuItem>
-            <DropdownMenuItem>Claude 3.7 Sonnet</DropdownMenuItem>
-            <DropdownMenuItem>GPT-4o</DropdownMenuItem>
-            <DropdownMenuItem>Gemini 2.5 Flash</DropdownMenuItem>
+            {models.map((model) => (
+              <DropdownMenuItem
+                key={model.id}
+                onClick={() => setSelectedModel(model)}
+              >
+                {model.name}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
 
