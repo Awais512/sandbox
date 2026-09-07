@@ -8,6 +8,7 @@ import { Loader2Icon } from "lucide-react"
 import { cn } from "cn"
 
 import { ChatComposer, models, type Model } from "@/components/chat-composer"
+import { ThinkingBlock } from "@/components/thinking-block"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Message, MessageAvatar, MessageContent } from "@/components/ui/message"
 import {
@@ -250,12 +251,11 @@ export function ChatThread({
                                       }
                                       if (part.type === "reasoning") {
                                         return (
-                                          <div
+                                          <ThinkingBlock
                                             key={partIndex}
-                                            className="my-1 rounded border-l-2 border-primary/40 bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground italic"
-                                          >
-                                            {part.text}
-                                          </div>
+                                            text={part.text}
+                                            state={part.state}
+                                          />
                                         )
                                       }
                                       return null
