@@ -1,7 +1,5 @@
 import Image from "next/image"
 import { auth } from "@clerk/nextjs/server"
-import { ChatComposer } from "@/components/chat-composer"
-import { Button } from "@/components/ui/button"
 import {
   Empty,
   EmptyContent,
@@ -10,7 +8,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { suggestions } from "@/lib/game/suggestions"
+import { HomeGameComposer } from "@/components/home-game-composer"
 
 export default async function Page() {
   await auth.protect({ unauthenticatedUrl: "/sign-in" })
@@ -31,26 +29,7 @@ export default async function Page() {
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent className="max-w-2xl gap-6">
-          <ChatComposer />
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {suggestions.map((item) => {
-              const Icon = item.icon
-              return (
-                <Button
-                  key={item.label}
-                  type="submit"
-                  name="title"
-                  value={item.label}
-                  variant="outline"
-                  size="sm"
-                  className="rounded-full font-normal text-muted-foreground"
-                >
-                  <Icon />
-                  {item.label}
-                </Button>
-              )
-            })}
-          </div>
+          <HomeGameComposer />
         </EmptyContent>
       </Empty>
     </div>

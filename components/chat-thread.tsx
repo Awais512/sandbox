@@ -22,16 +22,39 @@ import {
 export interface ChatThreadProps {
   gameId?: string
   initialMessages?: UIMessage[]
+  initialPrompt?: string
+  initialModelId?: string
   className?: string
 }
 
 export function ChatThread({
   gameId,
   initialMessages,
+  initialPrompt,
+  initialModelId,
   className,
 }: ChatThreadProps) {
   const [input, setInput] = React.useState("")
-  const [selectedModel, setSelectedModel] = React.useState<Model>(models[0])
+  const [selectedModel, setSelectedModel] = React.useState<Model>(() => {
+    if (initialModelId) {
+      const match = models.find((m) => m.id === initialModelId)
+      if (match) return match
+    }
+    if (typeof window !== "undefined" && gameId) {
+      try {
+        const storedModel = window.sessionStorage.getItem(
+          `pending_model_${gameId}`
+        )
+        if (storedModel) {
+          const match = models.find((m) => m.id === storedModel)
+          if (match) return match
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return models[0]
+  })
 
   const transport = React.useMemo(
     () =>
@@ -51,6 +74,93 @@ export function ChatThread({
   })
 
   const isPending = status === "submitted" || status === "streaming"
+
+  const hasAutoSubmittedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (hasAutoSubmittedRef.current) return
+
+    let promptToSend = initialPrompt?.trim()
+    if (!promptToSend && typeof window !== "undefined" && gameId) {
+      try {
+        const stored = window.sessionStorage.getItem(`pending_prompt_${gameId}`)
+        if (stored) {
+          promptToSend = stored.trim()
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!promptToSend) return
+
+    // If there are already messages in the thread, do not auto-submit
+    if (
+      (initialMessages && initialMessages.length > 0) ||
+      messages.length > 0
+    ) {
+      return
+    }
+
+    // Deduplication check per game to prevent duplicate submissions
+    if (typeof window !== "undefined" && gameId) {
+      const dedupeKey = `submitted_prompt_${gameId}`
+      try {
+        if (window.sessionStorage.getItem(dedupeKey) === promptToSend) {
+          return
+        }
+        window.sessionStorage.setItem(dedupeKey, promptToSend)
+      } catch {
+        // ignore
+      }
+    }
+
+    hasAutoSubmittedRef.current = true
+
+    // Clean up pending storage and URL query params
+    if (typeof window !== "undefined") {
+      try {
+        if (gameId) {
+          window.sessionStorage.removeItem(`pending_prompt_${gameId}`)
+          window.sessionStorage.removeItem(`pending_model_${gameId}`)
+        }
+        const url = new URL(window.location.href)
+        if (url.searchParams.has("prompt") || url.searchParams.has("model")) {
+          url.searchParams.delete("prompt")
+          url.searchParams.delete("model")
+          window.history.replaceState(
+            {},
+            "",
+            url.pathname + (url.search ? url.search : "")
+          )
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const modelToUse = initialModelId
+      ? (models.find((m) => m.id === initialModelId) ?? selectedModel)
+      : selectedModel
+
+    sendMessage(
+      { text: promptToSend },
+      {
+        body: {
+          gameId,
+          model: modelToUse.id,
+        },
+      }
+    )
+  }, [
+    gameId,
+    initialPrompt,
+    initialModelId,
+    initialMessages,
+    messages.length,
+    sendMessage,
+    selectedModel,
+  ])
 
   const handleSendMessage = (value: string) => {
     const text = value.trim()
@@ -80,22 +190,28 @@ export function ChatThread({
             <MessageScrollerViewport className="p-4 md:px-6">
               <MessageScrollerContent className="mx-auto flex w-full max-w-3xl flex-col gap-6 py-4">
                 {messages.length === 0 ? (
-                  <div className="flex h-full min-h-[320px] flex-col items-center justify-center p-8 text-center text-muted-foreground">
-                    <Image
-                      src="/logo.svg"
-                      alt="Assistant"
-                      width={40}
-                      height={40}
-                      className="mb-3 size-10 object-contain opacity-80"
-                    />
-                    <p className="text-base font-medium text-foreground">
-                      What should we build today?
-                    </p>
-                    <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                      Describe the mechanics, aesthetics, or gameplay changes
-                      you&apos;d like to explore.
-                    </p>
-                  </div>
+                  initialPrompt ? (
+                    <div className="flex h-full min-h-[320px] items-center justify-center">
+                      <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <div className="flex h-full min-h-[320px] flex-col items-center justify-center p-8 text-center text-muted-foreground">
+                      <Image
+                        src="/logo.svg"
+                        alt="Assistant"
+                        width={40}
+                        height={40}
+                        className="mb-3 size-10 object-contain opacity-80"
+                      />
+                      <p className="text-base font-medium text-foreground">
+                        What should we build today?
+                      </p>
+                      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                        Describe the mechanics, aesthetics, or gameplay changes
+                        you&apos;d like to explore.
+                      </p>
+                    </div>
+                  )
                 ) : (
                   messages.map((message, index) => {
                     const isLast = index === messages.length - 1

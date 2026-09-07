@@ -100,7 +100,7 @@ export function ChatComposer({
       return
     }
 
-    // Default: create a new game when rendered without an onSubmit handler (e.g. from page.tsx)
+    // Default: create a new game when rendered without an onSubmit handler
     startTransition(async () => {
       try {
         const newGame = await createGame({ title: text })
@@ -108,7 +108,21 @@ export function ChatComposer({
           setInternalValue("")
         }
         if (newGame?.id) {
-          router.push(`/games/${newGame.id}`)
+          try {
+            sessionStorage.setItem(`pending_prompt_${newGame.id}`, text)
+            sessionStorage.setItem(
+              `pending_model_${newGame.id}`,
+              selectedModel.id
+            )
+          } catch {
+            // ignore
+          }
+          const params = new URLSearchParams()
+          params.set("prompt", text)
+          if (selectedModel?.id) {
+            params.set("model", selectedModel.id)
+          }
+          router.push(`/games/${newGame.id}?${params.toString()}`)
         }
       } catch (error) {
         console.error("Failed to create game:", error)
