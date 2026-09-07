@@ -22,6 +22,13 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Empty, EmptyDescription } from "@/components/ui/empty"
+import {
+  Popover,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import type { Game } from "@/lib/db/schema"
 
 export interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -30,6 +37,7 @@ export interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 
 export function AppSidebar({ games = [], ...props }: AppSidebarProps) {
   const pathname = usePathname()
+  const [open, setOpen] = React.useState(false)
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -66,23 +74,13 @@ export function AppSidebar({ games = [], ...props }: AppSidebarProps) {
           <SidebarGroupLabel>Recents</SidebarGroupLabel>
           <SidebarGroupContent>
             {games.length === 0 ? (
-              <>
-                <Empty className="border border-dashed py-2 group-data-[collapsible=icon]:hidden">
-                  <EmptyDescription className="text-xs">
-                    Your games will live here.
-                  </EmptyDescription>
-                </Empty>
-                <SidebarMenu className="hidden group-data-[collapsible=icon]:flex">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton tooltip="Recents">
-                      <MessageSquareIcon />
-                      <span>Recents</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </>
+              <Empty className="border border-dashed py-2 group-data-[collapsible=icon]:hidden">
+                <EmptyDescription className="text-xs">
+                  Your games will live here.
+                </EmptyDescription>
+              </Empty>
             ) : (
-              <SidebarMenu>
+              <SidebarMenu className="group-data-[collapsible=icon]:hidden">
                 {games.map((game) => (
                   <SidebarMenuItem key={game.id}>
                     <SidebarMenuButton
@@ -97,6 +95,62 @@ export function AppSidebar({ games = [], ...props }: AppSidebarProps) {
                 ))}
               </SidebarMenu>
             )}
+
+            <SidebarMenu className="hidden group-data-[collapsible=icon]:flex">
+              <SidebarMenuItem>
+                <Popover open={open} onOpenChange={setOpen}>
+                  <PopoverTrigger
+                    render={
+                      <SidebarMenuButton
+                        tooltip={open ? undefined : "Recents"}
+                        isActive={games.some(
+                          (game) => pathname === `/games/${game.id}`
+                        )}
+                      >
+                        <MessageSquareIcon />
+                        <span>Recents</span>
+                      </SidebarMenuButton>
+                    }
+                  />
+                  <PopoverContent
+                    side="right"
+                    align="start"
+                    sideOffset={8}
+                    className="w-64 p-2"
+                  >
+                    <PopoverHeader className="px-2 py-1.5">
+                      <PopoverTitle className="text-xs font-semibold text-muted-foreground">
+                        Recents
+                      </PopoverTitle>
+                    </PopoverHeader>
+                    {games.length === 0 ? (
+                      <div className="p-2 text-xs text-muted-foreground">
+                        Your games will live here.
+                      </div>
+                    ) : (
+                      <SidebarMenu className="max-h-80 overflow-y-auto">
+                        {games.map((game) => (
+                          <SidebarMenuItem key={game.id}>
+                            <SidebarMenuButton
+                              isActive={pathname === `/games/${game.id}`}
+                              render={
+                                <Link
+                                  href={`/games/${game.id}`}
+                                  onClick={() => setOpen(false)}
+                                />
+                              }
+                            >
+                              <MessageSquareIcon />
+                              <span className="truncate">{game.title}</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))}
+                      </SidebarMenu>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              </SidebarMenuItem>
+            </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
