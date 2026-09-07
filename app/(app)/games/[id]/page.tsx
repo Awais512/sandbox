@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server"
+import { ChatThread } from "@/components/chat-thread"
 
 interface GamePageProps {
   params: Promise<{
@@ -11,8 +12,8 @@ export default async function GamePage({ params }: GamePageProps) {
   const { id } = await params
 
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6">
-      <p>{id}</p>
+    <div className="flex h-svh w-full flex-col overflow-hidden">
+      <ChatThread gameId={id} />
     </div>
   )
 }
