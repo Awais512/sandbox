@@ -22,8 +22,13 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Empty, EmptyDescription } from "@/components/ui/empty"
+import type { Game } from "@/lib/db/schema"
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
+  games?: Game[]
+}
+
+export function AppSidebar({ games = [], ...props }: AppSidebarProps) {
   const pathname = usePathname()
 
   return (
@@ -60,19 +65,38 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarGroup>
           <SidebarGroupLabel>Recents</SidebarGroupLabel>
           <SidebarGroupContent>
-            <Empty className="border border-dashed py-2 group-data-[collapsible=icon]:hidden">
-              <EmptyDescription className="text-xs">
-                Your games will live here.
-              </EmptyDescription>
-            </Empty>
-            <SidebarMenu className="hidden group-data-[collapsible=icon]:flex">
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Recents">
-                  <MessageSquareIcon />
-                  <span>Recents</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
+            {games.length === 0 ? (
+              <>
+                <Empty className="border border-dashed py-2 group-data-[collapsible=icon]:hidden">
+                  <EmptyDescription className="text-xs">
+                    Your games will live here.
+                  </EmptyDescription>
+                </Empty>
+                <SidebarMenu className="hidden group-data-[collapsible=icon]:flex">
+                  <SidebarMenuItem>
+                    <SidebarMenuButton tooltip="Recents">
+                      <MessageSquareIcon />
+                      <span>Recents</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </>
+            ) : (
+              <SidebarMenu>
+                {games.map((game) => (
+                  <SidebarMenuItem key={game.id}>
+                    <SidebarMenuButton
+                      tooltip={game.title}
+                      isActive={pathname === `/games/${game.id}`}
+                      render={<Link href={`/games/${game.id}`} />}
+                    >
+                      <MessageSquareIcon />
+                      <span className="truncate">{game.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

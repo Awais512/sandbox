@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import {
   ArrowUpIcon,
   CarIcon,
@@ -7,6 +8,7 @@ import {
   CrosshairIcon,
   Gamepad2Icon,
   GripVerticalIcon,
+  Loader2Icon,
   PickaxeIcon,
   PlaneIcon,
   SwordsIcon,
@@ -26,6 +28,7 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
+import { createGame } from "@/lib/games/actions"
 
 const suggestions = [
   { label: "Voxel survival", icon: PickaxeIcon },
@@ -38,6 +41,30 @@ const suggestions = [
 ]
 
 export function ChatComposer() {
+  const [prompt, setPrompt] = React.useState("")
+  const [isPending, startTransition] = React.useTransition()
+
+  const handleSubmit = (value?: string) => {
+    const title = (value ?? prompt).trim()
+    if (!title || isPending) return
+
+    startTransition(async () => {
+      try {
+        await createGame({ title })
+        setPrompt("")
+      } catch (error) {
+        console.error("Failed to create game:", error)
+      }
+    })
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit()
+    }
+  }
+
   return (
     <div className="flex w-full flex-col items-center gap-4">
       <InputGroup className="bg-popover">
@@ -45,6 +72,10 @@ export function ChatComposer() {
           rows={1}
           placeholder="Describe the game you want to build..."
           className="field-sizing-content max-h-48 min-h-10"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isPending}
         />
         <InputGroupAddon align="block-end" className="justify-between">
           <DropdownMenu>
@@ -69,8 +100,14 @@ export function ChatComposer() {
             variant="default"
             size="icon-sm"
             className="rounded-full"
+            disabled={isPending || !prompt.trim()}
+            onClick={() => handleSubmit()}
           >
-            <ArrowUpIcon />
+            {isPending ? (
+              <Loader2Icon className="animate-spin" />
+            ) : (
+              <ArrowUpIcon />
+            )}
           </InputGroupButton>
         </InputGroupAddon>
       </InputGroup>
@@ -84,6 +121,11 @@ export function ChatComposer() {
               variant="outline"
               size="sm"
               className="rounded-full font-normal text-muted-foreground"
+              disabled={isPending}
+              onClick={() => {
+                setPrompt(item.label)
+                handleSubmit(item.label)
+              }}
             >
               <Icon />
               {item.label}
