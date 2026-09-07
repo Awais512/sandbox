@@ -111,6 +111,7 @@ export function ChatThreadInner({
   const {
     messages,
     sendMessage,
+    setMessages,
     status,
     stop: aiStop,
     error,
@@ -127,7 +128,29 @@ export function ChatThreadInner({
       void transport.stopGeneration(gameId)
     }
     void aiStop()
-  }, [transport, gameId, aiStop])
+    // Finalize streaming parts immediately so the ThinkingBlock spinner
+    // stops on this render instead of waiting for the backend
+    // turn-complete (which we just aborted and may never receive).
+    // Mirrors the backend's cleanupAbortedParts: streaming text/reasoning
+    // become done so they render in their settled state.
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (!msg.parts?.length) return msg
+        let changed = false
+        const parts = msg.parts.map((part) => {
+          if (
+            (part.type === "text" || part.type === "reasoning") &&
+            part.state === "streaming"
+          ) {
+            changed = true
+            return { ...part, state: "done" as const }
+          }
+          return part
+        })
+        return changed ? { ...msg, parts } : msg
+      })
+    )
+  }, [transport, gameId, aiStop, setMessages])
 
   const isPending = status === "submitted" || status === "streaming"
 
@@ -366,15 +389,20 @@ export function ChatThreadInner({
                                           <ThinkingBlock
                                             key={partIndex}
                                             text={part.text}
-                                            state={part.state}
+                                            state={
+                                              part.state === "streaming" &&
+                                              isPending
+                                                ? "streaming"
+                                                : "done"
+                                            }
                                           />
                                         )
                                       }
                                       return null
                                     })
-                                  ) : (
+                                  ) : isPending ? (
                                     <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-                                  )}
+                                  ) : null}
                                 </BubbleContent>
                               </Bubble>
                             </MessageContent>
