@@ -55,6 +55,13 @@ export interface ChatThreadProps {
 }
 
 export function ChatThread({ className }: ChatThreadProps) {
+  const [input, setInput] = React.useState("")
+
+  const sendMessage = (value: string) => {
+    console.log("sendMessage:", value)
+    setInput("")
+  }
+
   return (
     <div
       className={cn(
@@ -114,7 +121,11 @@ export function ChatThread({ className }: ChatThreadProps) {
 
       <div className="w-full shrink-0 border-t bg-background/80 p-4 backdrop-blur-sm md:px-6">
         <div className="mx-auto max-w-3xl">
-          <ChatComposer />
+          <ChatComposer
+            value={input}
+            onChange={setInput}
+            onSubmit={sendMessage}
+          />
         </div>
       </div>
     </div>
