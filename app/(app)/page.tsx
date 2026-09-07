@@ -1,7 +1,9 @@
 import Image from "next/image"
 import { auth } from "@clerk/nextjs/server"
+import { ChatComposer } from "@/components/chat-composer"
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -26,6 +28,9 @@ export default async function Page() {
             own words. If you can describe it, you can play it.
           </EmptyDescription>
         </EmptyHeader>
+        <EmptyContent className="max-w-2xl">
+          <ChatComposer />
+        </EmptyContent>
       </Empty>
     </div>
   )

@@ -5,6 +5,11 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Execution Mode
+
+- **Skip Approval Prompts:** Do not generate diff previews, or accept/reject interfaces after implementation.
+- **Immediate Implementation:** Apply all code changes directly to the target files instantly using your internal file tools, then summarize what you changed.
+
 # Database schema changes
 
 This project is in active development. There is no production data and no
